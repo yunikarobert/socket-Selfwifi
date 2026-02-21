@@ -1,98 +1,192 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
-
-import { HelloWave } from '@/components/hello-wave';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Link } from 'expo-router';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, TextInput, Alert } from 'react-native';
+import FancyToggle from '../components/FancyToggle';
+import ScheduleList from '../components/ScheduleList';
+import TimerControl from '../components/TimerControl';
 
 export default function HomeScreen() {
-  return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12',
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <Link href="/modal">
-          <Link.Trigger>
-            <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-          </Link.Trigger>
-          <Link.Preview />
-          <Link.Menu>
-            <Link.MenuAction title="Action" icon="cube" onPress={() => alert('Action pressed')} />
-            <Link.MenuAction
-              title="Share"
-              icon="square.and.arrow.up"
-              onPress={() => alert('Share pressed')}
-            />
-            <Link.Menu title="More" icon="ellipsis">
-              <Link.MenuAction
-                title="Delete"
-                icon="trash"
-                destructive
-                onPress={() => alert('Delete pressed')}
-              />
-            </Link.Menu>
-          </Link.Menu>
-        </Link>
+  const [espIp, setEspIp] = useState('192.168.4.1');
+  const [isOn, setIsOn] = useState(false);
+  const [isToggling, setIsToggling] = useState(false);
 
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+  const getCurrentState = async () => {
+    try {
+      const res = await fetch(`http://${espIp}/status`);
+      const text = await res.text();
+      const isOnNow = text.toLowerCase().includes('on') || text.toLowerCase().includes('1');
+      setIsOn(isOnNow);
+    } catch (e) {
+      console.log('Failed to fetch status', e);
+    }
+  };
+
+  const togglePower = async () => {
+    if (isToggling) return;
+    setIsToggling(true);
+    try {
+      const action = isOn ? 'off' : 'on';
+      await fetch(`http://${espIp}/${action}`);
+      await new Promise(r => setTimeout(r, 500));
+      await getCurrentState();
+    } catch (e) {
+      Alert.alert('Error', `Failed to toggle power: ${e}`);
+    } finally {
+      setIsToggling(false);
+    }
+  };
+
+  useEffect(() => {
+    getCurrentState();
+    const polling = setInterval(getCurrentState, 5000);
+    return () => clearInterval(polling);
+  }, [espIp]);
+
+  return (
+    <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
+      <Text style={styles.header}>IoT Smart Socket</Text>
+      <Text style={styles.subtitle}>Broadcast WiFi Mode</Text>
+
+      <View style={styles.settingsSection}>
+        <Text style={styles.sectionTitle}>Device Settings</Text>
+        <Text style={styles.instructionText}>
+          Make sure your phone is connected to the ESP's WiFi network first!
+        </Text>
+        <Text style={styles.label}>ESP IP Address</Text>
+        <TextInput
+          style={styles.input}
+          value={espIp}
+          onChangeText={setEspIp}
+          placeholder="192.168.4.1"
+          placeholderTextColor="#666"
+        />
+      </View>
+
+      <View style={styles.toggleSection}>
+        <FancyToggle 
+          isOn={isOn} 
+          onToggle={togglePower}
+          disabled={isToggling}
+        />
+      </View>
+
+      <View style={styles.statusSection}>
+        <Text style={styles.statusText}>Status: <Text style={[styles.statusValue, isOn && styles.statusOn, !isOn && styles.statusOff]}>{isOn ? 'ON' : 'OFF'}</Text></Text>
+      </View>
+
+      <View style={styles.scheduleSection}>
+        <Text style={styles.sectionTitle}>📅 Schedule On/Off</Text>
+        <ScheduleList espIp={espIp} onComplete={getCurrentState} />
+      </View>
+
+      <View style={styles.timerSection}>
+        <TimerControl espIp={espIp} onComplete={getCurrentState} />
+      </View>
+
+      <View style={styles.footer}>
+        <Text style={styles.footerText}>powered by WeMakIT Smart-socket</Text>
+      </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  titleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
+  container: {
+    flex: 1,
+    backgroundColor: '#0a0a0a',
   },
-  stepContainer: {
-    gap: 8,
+  contentContainer: {
+    paddingHorizontal: 16,
+    paddingVertical: 20,
+  },
+  header: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: '#00ff99',
+    marginBottom: 4,
+    textAlign: 'center',
+  },
+  subtitle: {
+    fontSize: 14,
+    color: '#00ff99',
+    textAlign: 'center',
+    marginBottom: 24,
+    opacity: 0.8,
+  },
+  settingsSection: {
+    backgroundColor: '#1a1a1a',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: '#333',
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#00ff99',
+    marginBottom: 12,
+  },
+  instructionText: {
+    fontSize: 12,
+    color: '#aaa',
+    marginBottom: 12,
+    fontStyle: 'italic',
+  },
+  label: {
+    fontSize: 13,
+    color: '#fff',
     marginBottom: 8,
+    fontWeight: '600',
   },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
+  input: {
+    backgroundColor: '#333',
+    color: '#fff',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 16,
+    borderWidth: 1,
+    borderColor: '#00ff99',
+  },
+  toggleSection: {
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  statusSection: {
+    backgroundColor: '#1a1a1a',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: '#333',
+    alignItems: 'center',
+  },
+  statusText: {
+    fontSize: 16,
+    color: '#fff',
+    fontWeight: '600',
+  },
+  statusValue: {
+    fontWeight: 'bold',
+  },
+  statusOn: {
+    color: '#00ff99',
+  },
+  statusOff: {
+    color: '#ff3333',
+  },
+  scheduleSection: {
+    marginBottom: 24,
+  },
+  timerSection: {
+    marginBottom: 24,
+  },
+  footer: {
+    alignItems: 'center',
+    paddingVertical: 20,
+  },
+  footerText: {
+    color: '#666',
+    fontSize: 12,
   },
 });
