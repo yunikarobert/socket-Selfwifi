@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, ScrollView, TextInput, Alert } from 'react-nati
 import FancyToggle from '../components/FancyToggle';
 import ScheduleList from '../components/ScheduleList';
 import TimerControl from '../components/TimerControl';
+import WifiScanner from '../components/WifiScanner';
 
 export default function HomeScreen() {
   const [espIp, setEspIp] = useState('192.168.4.1');
@@ -46,10 +47,12 @@ export default function HomeScreen() {
       <Text style={styles.header}>IoT Smart Socket</Text>
       <Text style={styles.subtitle}>Broadcast WiFi Mode</Text>
 
+      <WifiScanner onConnected={(ip) => setEspIp(ip)} />
+
       <View style={styles.settingsSection}>
         <Text style={styles.sectionTitle}>Device Settings</Text>
         <Text style={styles.instructionText}>
-          Make sure your phone is connected to the ESP's WiFi network first!
+          The ESP IP is auto-detected above. Edit only if your device uses a custom IP.
         </Text>
         <Text style={styles.label}>ESP IP Address</Text>
         <TextInput
